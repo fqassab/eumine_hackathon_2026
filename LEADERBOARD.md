@@ -1,6 +1,6 @@
 # Leaderboard — EuMINe DataBridge Hackathon 2026
 
-*Updated: 2026-05-07 17:22 UTC*
+*Updated: 2026-05-07 17:28 UTC*
 
 Score = `performance_score` (0–40 pts). Baseline score = 20 pts. ✓ = beats baseline.
 
