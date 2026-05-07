@@ -1,12 +1,14 @@
-name: Validate MatFed API Template
+name: CI
 
 on:
   push:
     paths:
       - 'matfed-api-template/**'
+      - 'submissions/**'
   pull_request:
     paths:
       - 'matfed-api-template/**'
+      - 'submissions/**'
 
 jobs:
   test:
@@ -28,3 +30,47 @@ jobs:
         run: |
           cd matfed-api-template
           pytest tests/test_interface.py -v
+
+  check-submission:
+    runs-on: ubuntu-latest
+    if: |
+      contains(join(github.event.commits.*.modified, ' '), 'submissions/') ||
+      contains(join(github.event.pull_request.changed_files, ' '), 'submissions/')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate predictions_test.json format
+        run: |
+          python - <<'EOF'
+          import json, sys, pathlib
+
+          errors = []
+          for path in pathlib.Path("submissions").rglob("predictions_test.json"):
+              try:
+                  data = json.loads(path.read_text())
+              except json.JSONDecodeError as e:
+                  errors.append(f"{path}: invalid JSON — {e}")
+                  continue
+
+              if "predictions" not in data:
+                  errors.append(f"{path}: missing 'predictions' key")
+                  continue
+
+              preds = data["predictions"]
+              if not isinstance(preds, list) or len(preds) == 0:
+                  errors.append(f"{path}: 'predictions' must be a non-empty list")
+                  continue
+
+              required = {"material_id", "formation_energy_per_atom", "band_gap"}
+              for i, entry in enumerate(preds[:5]):  # spot-check first 5
+                  missing = required - set(entry.keys())
+                  if missing:
+                      errors.append(f"{path}[{i}]: missing fields {missing}")
+
+              print(f"  OK  {path}  ({len(preds)} predictions)")
+
+          if errors:
+              for e in errors:
+                  print(f"ERROR: {e}")
+              sys.exit(1)
+          EOF

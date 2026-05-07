@@ -27,11 +27,11 @@
    ```
    All 150 test `material_id` values must be present. The IDs correspond to the structures in `test_input_structures.zip` (Google Drive).
 
-4. Open a **Pull Request** against the `main` branch.
+4. Open a **Pull Request** against the `main` branch.  
+   CI will automatically check that your file is valid JSON with the correct fields.
 
-5. The scoring bot will automatically post your performance score as a comment on the PR within a few minutes.
-
-6. The organizer will **merge** your PR to record the submission. Only merged submissions appear on the leaderboard.
+5. The organizer will review and **merge** your PR.  
+   Scores are updated on the leaderboard within a day of merging.
 
 ## Rules
 
