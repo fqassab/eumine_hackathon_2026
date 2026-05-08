@@ -5,7 +5,7 @@
 - **Stage 1 (remote):** May 11 – June 22, 2026
 - **Stage 2 (in-person):** EuMINe General Meeting, Cluj-Napoca, July 2026
 - **Submissions:** open a PR to [`submissions/YourTeam/predictions_test.json`](submissions/) — score posted automatically
-- **Website:** https://www.eumine-cost.eu/news/eumine-hackaton-2026/
+- **Website:** https://www.eumine-cost.eu/news/eumine-hackathon-2026/
 - **Q&A:** [GitHub Discussions](../../discussions)
 
 ---
