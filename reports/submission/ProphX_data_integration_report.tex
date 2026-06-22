@@ -1,0 +1,123 @@
+%% ProphX_data_integration_report.tex
+%% EuMINe DataBridge Hackathon 2026 — Data Integration Report
+
+\documentclass[10pt, a4paper]{article}
+%\usepackage{eumine_hackathon}
+
+\title{%
+  \textbf{Data Integration Report}\\[4pt]
+  {\large EuMINe DataBridge Hackathon \hackathonyear}
+}
+\author{
+  Team ProphX \\
+  \small Institution(s): SABIC, Independet \\
+  \small Contact email: rabab.alqassab@gmail.com, fatima.alq@hotmail.com
+}
+\date{22 June 2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\begin{abstract}
+This report describes the data integration procedure used for the submitted ProphX\_v2\_scaled model. The final training data were constructed from the official EuMINe Bridge training split and selected inorganic crystalline records from JARVIS-DFT and AFLOW. The official EuMINe validation and hidden-test partitions were preserved and were not used for model training. Cross-source matches were retained in a harmonised table with source-specific property columns rather than blindly averaged labels, allowing cross-database discrepancies to be used as confidence and reliability information. External JARVIS-DFT and AFLOW records without EuMINe matches were appended as additional training examples after screening for valid structures, valid labels, inorganic crystalline character, duplicate records, and absence of EuMINe validation leakage. The final no-leakage training file contained 1,694 rows and was used to generate 166 aligned physics-guided descriptor features.
+\end{abstract}
+
+\tableofcontents
+\vspace{1em}
+
+\section{Data Sources Used}
+
+\begin{table}[h!]
+\centering
+\caption{Summary of data sources included in the training dataset.}
+\label{tab:sources}
+\begin{tabular}{@{}lllll@{}}
+\toprule
+Source & Version / date & Entries used & Properties & DFT functional / label convention \\
+\midrule
+EuMINe Bridge & 2026 hackathon release & 700 train; 150 validation; 150 hidden test & $E_f$, $E_g$ & Supplied by EuMINe \\
+JARVIS-DFT dft\_3d & Local hackathon snapshot & 600 selected records & $E_f$, $E_g$ & JARVIS-reported OptB88vdW-related labels \\
+AFLOW & Local hackathon snapshot & 400 selected records & formation-related value, $E_g$ & AFLOW-reported labels \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{EuMINe Bridge Dataset}
+The EuMINe Bridge Dataset was treated as the official target-domain dataset. The supplied split contained 700 labelled training structures, 150 labelled validation structures, and 150 hidden-test structures without released labels. The official split boundaries were preserved throughout preprocessing. EuMINe validation and hidden-test records were not used for model training. EuMINe material identifiers were retained so that all downstream predictions could be mapped back to the required submission IDs.
+
+\subsection{JARVIS-DFT}
+JARVIS-DFT was used as an external source of inorganic crystalline materials. The retained JARVIS metadata fields included \texttt{formation\_energy\_peratom} for formation energy per atom and \texttt{optb88vdw\_bandgap} for band gap. Candidate records were screened for usable structure files, usable numeric property values, valid local CIF paths, and final eligibility after cross-source overlap checks. The final prepared JARVIS selection contained 600 structures. These structures were parsed as \texttt{pymatgen} \texttt{Structure} objects and featurised using the same descriptor schema as the EuMINe records.
+
+\subsection{AFLOW}
+AFLOW was used as a second external source of inorganic crystalline materials. The retained AFLOW metadata fields included \texttt{enthalpy\_formation\_atom} as the source-specific formation-related label and \texttt{Egap} as the source-specific band-gap label. Candidate records were restricted to strict inorganic materials, hydrogen-containing candidates were excluded, and records were required to have usable property values and valid structure paths. AFLOW structures were kept in their native VASP-style formats, including POSCAR, CONTCAR, and related VASP files, rather than being converted unnecessarily to CIF. Some AFLOW VASP files lacked a standard element-symbol line, so a fallback parser was implemented to infer the element order from the title or formula line and reconstruct the structure. The final prepared AFLOW expansion contained 400 structures.
+
+\section{Harmonisation Strategy}
+
+\subsection{Structure Matching}
+Cross-source matching was performed using chemistry- and structure-related identifiers, including reduced formula, number of sites, and space-group information where available. The purpose of matching was not only to remove repeated records, but also to identify materials for which multiple databases reported source-specific values. Matched records were retained in an integrated representation so that source disagreement could be quantified and used downstream.
+
+\subsection{Handling Duplicates and Leakage}
+Exact duplicate structure/property entries were removed before training. Additional screening was performed to prevent contamination of the official EuMINe validation and hidden-test partitions. The original merged table contained all 150 EuMINe validation material IDs; these 150 validation rows were removed before model training. The resulting final no-leakage training table contained 1,694 rows and was saved as \texttt{train\_no\_eumine\_val\_leakage.csv}.
+
+\subsection{Label Assignment and Source-Specific Values}
+For matched materials, source-specific values were preserved in separate columns rather than overwritten or averaged. EuMINe labels were treated as the target-domain reference where available, while AFLOW and JARVIS-DFT labels were retained with their own provenance. Materials present only in AFLOW or JARVIS-DFT were appended as additional external training examples after eligibility and leakage screening. This procedure allowed the model-development workflow to exploit additional structural and chemical diversity while preserving information about cross-database label disagreement.
+
+\subsection{Discrepancy and Confidence Signals}
+For high-confidence cross-source matches, absolute differences between source-reported values were calculated for formation energy and band gap. These differences were used to create discrepancy information and confidence or sample-reliability signals for training. No source values were blindly averaged during preprocessing, because differences across databases can reflect differences in computational settings, exchange-correlation functional choices, pseudopotentials, convergence conventions, or post-processing definitions.
+
+\section{Data Card}
+
+\begin{table}[h!]
+\centering
+\caption{Dataset statistics used for the final model.}
+\label{tab:datacard}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Property & Value \\
+\midrule
+Official EuMINe split & 700 train / 150 validation / 150 hidden test \\
+Original merged rows before leakage removal & 1,844 \\
+EuMINe validation rows removed from training & 150 \\
+Final no-leakage training rows & 1,694 \\
+JARVIS-DFT selected structures & 600 \\
+AFLOW selected structures & 400 \\
+Training feature matrix & $1694 \times 166$ \\
+Validation feature matrix & $150 \times 166$ \\
+Unique chemical systems & Not recomputed for this report \\
+Space group count & Not recomputed for this report \\
+Median cross-source $|\Delta E_f|$ & Discrepancy table retained; median not reported here \\
+Median cross-source $|\Delta E_g|$ & Discrepancy table retained; median not reported here \\
+Splitting strategy & Official EuMINe split preserved; external records screened for leakage \\
+Stratification variable & Not applicable to the official preserved split \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+All sources were converted into an aligned descriptor schema before modelling. The feature representation included MAGPIE composition descriptors, stoichiometry descriptors, oxidation-state descriptors, ion-property descriptors, electronegativity features, number of sites, unit-cell volume, volume per atom, density, lattice parameters, lattice angles, inferred space-group information where available, and material-class flags.
+
+\section{Limitations and Failure Cases}
+
+\begin{itemize}
+  \item The final dataset was intentionally restricted to inorganic crystalline materials; organic, molecular, disordered, or otherwise unsupported structures were excluded.
+  \item Hydrogen-containing AFLOW candidates were excluded during preprocessing, which may reduce coverage of hydrides and hydrogen-containing inorganic compounds.
+  \item AFLOW, JARVIS-DFT, and EuMINe labels may not be directly interchangeable because each source can reflect different computational settings and database conventions.
+  \item Band-gap labels are especially sensitive to the electronic-structure method and may contain systematic source-dependent bias.
+  \item Very nonstandard structure files can fail parsing. A fallback parser was added for nonstandard AFLOW VASP files, but not all possible malformed structure formats can be guaranteed.
+  \item Unique chemical-system counts, space-group counts, and median discrepancy values were not recomputed in the final report package and should be regenerated from the saved manifests for a full audit.
+\end{itemize}
+
+\section*{AI-Assisted Development Disclaimer}
+During this hackathon, generative AI tools were used to assist with rapid prototyping, report drafting, debugging, and ``vibe coding''. The submitted data-processing decisions, model selection, validation checks, and final responsibility for the submission remain with Team ProphX.
+
+\section*{References}
+
+\begin{enumerate}
+  \item Choudhary, K. et al., \textit{npj Computational Materials} \textbf{6}, 173 (2020) --- JARVIS-DFT.
+  \item Curtarolo, S. et al., ``AFLOW: An automatic framework for high-throughput materials discovery,'' \textit{Computational Materials Science} (2012) --- AFLOW.
+  \item Calderon, C. E. et al., ``The AFLOW Standard for High-Throughput Materials Science Calculations,'' \textit{Computational Materials Science} (2015) --- AFLOW calculation standards.
+  \item Jihad, I., Anfa, M. H. S., Alqahtani, S. M., and Alharbi, F. H., ``DFT-PBE band gap correction using machine learning with a reduced set of features,'' \textit{Computational Materials Science} (2024), doi:10.1016/j.commatsci.2024.113153.
+  \item Jain, A., ``Machine learning in materials research: Developments over the last decade and challenges for the future,'' \textit{Current Opinion in Solid State and Materials Science} \textbf{33}, 101189 (2024), doi:10.1016/j.cossms.2024.101189.
+\end{enumerate}
+
+\end{document}

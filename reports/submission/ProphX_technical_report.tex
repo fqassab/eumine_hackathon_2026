@@ -1,0 +1,186 @@
+%% ProphX_technical_report.tex
+%% EuMINe DataBridge Hackathon 2026 — Technical Report
+
+\documentclass[10pt, a4paper]{article}
+%\usepackage{eumine_hackathon}
+
+\title{%
+  \textbf{Technical Report}\\[4pt]
+  {\large EuMINe DataBridge Hackathon \hackathonyear}
+}
+\author{
+  Team ProphX \\
+  \small Institution(s): SABIC, Independent \\
+  \small Contact email: rabab.alqassab@gmail.com, fatima.alq@hotmail.com
+}
+\date{22 June 2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\begin{abstract}
+The final submitted model is ProphX\_v2\_scaled, a physics-guided descriptor model compatible with the MatFed API v1 predictor contract. It predicts formation energy per atom and band gap using separate supervised models trained on 166 composition and structure-derived features. The training data combined the official EuMINe training split with screened AFLOW and JARVIS-DFT records in a no-leakage harmonised table. Cross-source matches retained source-specific values and discrepancy information rather than blindly averaged labels. On the 150-row EuMINe validation set, the final model achieved a formation-energy MAE of 0.22877 eV/atom and a band-gap MAE of 0.37127 eV, improving over the stated baseline MAEs of 0.2378 eV/atom and 0.6414 eV, respectively.
+\end{abstract}
+
+\tableofcontents
+\vspace{1em}
+
+\section{Model Architecture}
+
+\subsection{Overview}
+ProphX\_v2\_scaled is a classical machine-learning model using physics-guided composition and crystal-structure descriptors. Two separate target models were used: one for formation energy per atom and one for band gap. The separation was chosen because formation energy is a thermodynamic stability target, whereas band gap is an electronic-structure target with different error behaviour and stronger sensitivity to computational settings. The predictor returns dictionaries containing \texttt{formation\_energy\_per\_atom}, \texttt{band\_gap}, \texttt{model\_id}, and \texttt{data\_sources\_used}.
+
+\subsection{Input Representation}
+Each crystal structure was parsed as a \texttt{pymatgen} \texttt{Structure} object and converted into a 166-column numerical feature vector. The features included MAGPIE composition descriptors, stoichiometry descriptors, oxidation-state descriptors, ion-property descriptors, average electronegativity, minimum electronegativity difference, average absolute oxidation state, number of sites, volume, volume per atom, an inverse-radius proxy derived from volume per atom, density, lattice parameters, lattice angles, and material-class flags for oxides, sulfides, nitrides, halides, phosphides, and carbides. Band gap was not used as an input feature for formation-energy prediction, and formation energy was not used as an input feature for band-gap prediction.
+
+\subsection{Architecture Details}
+The formation-energy model used an \texttt{ExtraTreesRegressor} inside a preprocessing pipeline with median imputation. The selected formation-energy hyperparameters were:
+
+\begin{itemize}
+  \item \texttt{n\_estimators = 1200}
+  \item \texttt{min\_samples\_leaf = 1}
+  \item \texttt{max\_features = 1.0}
+  \item \texttt{bootstrap = False}
+  \item \texttt{random\_state = 42}
+\end{itemize}
+
+The band-gap model was trained separately using the same descriptor representation. The final ProphX\_v2 band-gap model was retained in the submitted artifacts because it showed strong EuMINe validation performance. Both target models were serialized as joblib artifacts and loaded by the submitted predictor.
+
+\subsection{Formation-Energy Calibration}
+After training, the formation-energy model showed a small validation-domain scale bias. A fixed multiplicative calibration was selected using only the labelled EuMINe validation set:
+
+\[
+E_{f,\,\mathrm{scaled}} = 1.04\,E_{f,\,\mathrm{raw}} .
+\]
+
+This reduced validation formation-energy MAE from approximately 0.23667 eV/atom to 0.22877 eV/atom. The scaling was implemented by wrapping the trained formation-energy estimator in a \texttt{ScaledRegressor} class, so the submitted \texttt{physics\_model\_ef.joblib} applies the calibration internally during prediction. Hidden-test labels were not used for this calibration.
+
+\section{Training Procedure}
+
+\subsection{Data Split Used}
+The official EuMINe split was preserved: 700 labelled training structures, 150 labelled validation structures, and 150 hidden-test structures. Additional screened records from AFLOW and JARVIS-DFT were incorporated into the training data only after duplicate checks, valid-label checks, valid-structure checks, and leakage screening. The original merged table contained 1,844 rows. All 150 EuMINe validation material IDs found in the merged table were removed before training, producing the final \texttt{train\_no\_eumine\_val\_leakage.csv} file with 1,694 rows.
+
+\subsection{Learning Objective}
+The final models are tree-based regressors rather than neural networks trained with a gradient optimiser. Therefore, no multi-task neural-network loss was used. Formation energy and band gap were optimized as separate supervised regression tasks. For matched cross-source records, discrepancy information was retained and converted into confidence or sample-reliability signals, so records with stronger source agreement could be treated as more reliable than records with larger cross-database disagreement.
+
+\subsection{Hyperparameters}
+\begin{table}[h!]
+\centering
+\caption{Training and model hyperparameters.}
+\label{tab:hparams}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Hyperparameter & Value \\
+\midrule
+Model family & Descriptor-based tree ensemble \\
+Formation-energy estimator & \texttt{ExtraTreesRegressor} \\
+Band-gap estimator & Separate ProphX\_v2 descriptor model \\
+Imputation & Median imputation \\
+Formation-energy trees & 1200 \\
+Formation-energy min samples per leaf & 1 \\
+Formation-energy max features & 1.0 \\
+Formation-energy bootstrap & False \\
+Random seed & 42 \\
+Formation-energy scale factor & 1.04 \\
+Neural-network optimiser & Not applicable \\
+Learning rate / batch size / epochs & Not applicable \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Hardware and Runtime}
+The model used descriptor generation and scikit-learn/joblib model artifacts and did not require GPU training. Exact local hardware and wall-clock runtime were not logged in the final notes.
+
+\section{Results}
+
+\begin{table}[h!]
+\centering
+\caption{Validation-set performance vs. baseline.}
+\label{tab:results}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Model & MAE $E_f$ (eV/atom) & MAE $E_g$ (eV) \\
+\midrule
+Official baseline & 0.2378 & 0.6414 \\
+\textbf{ProphX\_v2\_scaled} & \textbf{0.22877} & \textbf{0.37127} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+On the 150-row EuMINe validation set, ProphX\_v2\_scaled achieved the following metrics:
+
+\begin{table}[h!]
+\centering
+\caption{Detailed validation metrics for ProphX\_v2\_scaled.}
+\label{tab:detailed_results}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Target & RMSE & MAE & $R^2$ \\
+\midrule
+Formation energy per atom & 0.41433 eV/atom & 0.22877 eV/atom & 0.85823 \\
+Band gap & 0.63374 eV & 0.37127 eV & 0.81494 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Relative to the official baseline MAEs, this corresponds to an approximate MAE reduction of 3.80\% for formation energy and 42.12\% for band gap. Using the leaderboard scoring formula supplied for the hackathon, the estimated validation score was approximately 10.40/20 for formation energy, 14.28/20 for band gap, and 24.67/40 overall.
+
+\subsection{Error Analysis}
+The formation-energy model performed well overall but benefited from a small multiplicative calibration, indicating a validation-domain scale bias rather than a complete model mismatch. Band-gap prediction improved substantially over the baseline, likely because the feature set included descriptors connected to bonding and electronic structure, such as oxidation-state features, electronegativity features, ion-property descriptors, density, and volume-per-atom-derived features. Remaining errors are expected for small-gap materials, metallic or near-metallic cases, and materials whose source labels are sensitive to the computational method or database convention.
+
+
+\section{Reproducibility}
+
+\subsection{Code Repository}
+https://github.com/fqassab/eumine_hackathon_2026
+
+\subsection{Dependencies}
+The submitted code used Python with \texttt{pymatgen}, \texttt{matminer}, \texttt{numpy}, \texttt{scikit-learn}, \texttt{joblib}, \texttt{jsonschema}, and \texttt{pytest}. The requirements file included with the submission is \texttt{ProphX\_Requirements.txt}.
+
+\subsection{Submitted Artifacts}
+The final model folder was named \texttt{models/} and contained:
+
+\begin{itemize}
+  \item \texttt{physics\_model\_ef.joblib}
+  \item \texttt{physics\_model\_bg.joblib}
+  \item \texttt{feature\_columns.joblib}
+  \item \texttt{metadata.joblib}
+  \item \texttt{discrepancy\_lookup.joblib}
+  \item \texttt{ProphX\_v2\_scaled\_metadata.json}
+\end{itemize}
+
+The required code files were \texttt{predictor.py}, \texttt{ProphX\_Predictor.py}, \texttt{scaled\_model\_wrapper.py}, and \texttt{ProphX\_Requirements.txt}. The \texttt{scaled\_model\_wrapper.py} file is required because the serialized formation-energy model depends on the \texttt{ScaledRegressor} class.
+
+\subsection{Reproducing Prediction}
+The exact training scripts are not restated here, but the submitted predictor can be used by installing the requirements, loading the model folder, and running prediction through the MatFed API v1-compatible predictor class. A representative workflow is:
+
+\begin{lstlisting}[language=bash]
+pip install -r ProphX_Requirements.txt
+# Load models/ through the submitted predictor implementation.
+# Run prediction on EuMINe test structures to produce predictions_test.json.
+\end{lstlisting}
+
+\section{Discussion}
+
+\subsection{Key Findings}
+Combining EuMINe with AFLOW and JARVIS-DFT improved the amount and diversity of training data, but it also introduced source-dependent labels. Preserving source-specific values in separate columns made it possible to use cross-database disagreement as reliability information rather than hiding disagreement through unconditional averaging. The band-gap task benefited most strongly from the descriptor set, while formation energy required only a modest validation-domain scale correction.
+
+\subsection{Limitations}
+The model relies on hand-engineered descriptors and may miss local structural effects captured by graph neural networks or electronic-structure-specific models. Cross-database labels may not be fully consistent. Band gaps are particularly sensitive to functional choice and source convention. The final model also depends on robust structure parsing; malformed or highly nonstandard structure files may still fail despite the AFLOW fallback parser.
+
+
+\section*{AI-Assisted Development Disclaimer}
+During this hackathon, generative AI tools were used to assist with rapid prototyping, report drafting, debugging, and ``vibe coding''. The submitted data-processing decisions, model selection, validation checks, and final responsibility for the submission remain with Team ProphX.
+
+\section*{References}
+
+\begin{enumerate}
+  \item Choudhary, K. et al., \textit{npj Computational Materials} \textbf{6}, 173 (2020) --- JARVIS-DFT.
+  \item Curtarolo, S. et al., ``AFLOW: An automatic framework for high-throughput materials discovery,'' \textit{Computational Materials Science} (2012) --- AFLOW.
+  \item Calderon, C. E. et al., ``The AFLOW Standard for High-Throughput Materials Science Calculations,'' \textit{Computational Materials Science} (2015) --- AFLOW calculation standards.
+  \item Jihad, I., Anfa, M. H. S., Alqahtani, S. M., and Alharbi, F. H., ``DFT-PBE band gap correction using machine learning with a reduced set of features,'' \textit{Computational Materials Science} (2024), doi:10.1016/j.commatsci.2024.113153.
+  \item Jain, A., ``Machine learning in materials research: Developments over the last decade and challenges for the future,'' \textit{Current Opinion in Solid State and Materials Science} \textbf{33}, 101189 (2024), doi:10.1016/j.cossms.2024.101189.
+\end{enumerate}
+
+\end{document}
