@@ -1,0 +1,36 @@
+{
+  "model_id": "ProphX_v2",
+  "data_sources_used": [
+    "EuMINe",
+    "AFLOW",
+    "JARVIS-DFT"
+  ],
+  "formation_energy_model": "FE_extra_trees_leaf1_current_weights",
+  "formation_energy_metrics_on_eumine_val": {
+    "n": 150,
+    "RMSE": 0.41693220314293356,
+    "MAE": 0.23667031617013284,
+    "R2": 0.8564361672304242
+  },
+  "band_gap_model": "BG_extra_trees_leaf1_all_sources",
+  "band_gap_metrics_on_eumine_val": {
+    "n": 150,
+    "RMSE": 0.6337397498923916,
+    "MAE": 0.37127157074074013,
+    "R2": 0.8149372442947354
+  },
+  "official_baselines": {
+    "formation_energy_mae": 0.2378,
+    "band_gap_mae": 0.6414
+  },
+  "method_note": "ProphX_v2 tests formation-energy-focused source-aware tree ensembles, motivated by multifidelity/residual correction literature. Band gap is retained from the strongest no-leakage model unless the retrained variant improves validation MAE.",
+  "best_fe_config": {
+    "name": "FE_extra_trees_leaf1_current_weights",
+    "model_type": "extra_trees",
+    "n_estimators": 900,
+    "min_samples_leaf": 1,
+    "max_features": 1.0,
+    "source_weight_mode": "none"
+  },
+  "use_v2_bg": true
+}

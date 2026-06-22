@@ -28,3 +28,13 @@ cif_files/
 # OS/editor
 .DS_Store
 .vscode/
+data/raw/prophx_v2_scaled/structures/
+
+# Keep the Model B reproducibility package despite broad *.joblib / *.csv ignores
+!models/prophx_v2_scaled/
+!models/prophx_v2_scaled/*.joblib
+!reports/model_b/
+!reports/model_b/*.csv
+
+# Large Model B binaries are stored in the separate ProphX artifact repository.
+models/prophx_v2_scaled/*.joblib
